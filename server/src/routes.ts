@@ -1,56 +1,55 @@
-import express, { request, response } from 'express';
-import knex from './database/connection';
+import express, { request } from 'express';
+import { celebrate, Joi } from 'celebrate';
+
+import multer from 'multer';
+import multerConfig from './config/multer';
+
+import PointsController from './controllers/PointsController';
+import ItemsController from './controllers/ItemsController';
 
 const routes = express.Router();
+const upload = multer(multerConfig);
 
-// listagem de items
-routes.get('/items', async (request, response) => {
-   const items = await knex('itens').select('*');
+const pointsController = new PointsController();
+const itemsController = new ItemsController();
 
-   const serializedItems = items.map(item => {
-        return {
-            id: item.id,
-            title : item.title,
-            image_url: `http://localhost:3333/uploads/${item.image}`,
-        };
-   });
-   return response.json(serializedItems);
-});
 
-routes.post('/points', async (request, response) => {
-    // recurso de desestruturação do javascript
-    // coloca cada campo em um variavel diferente qnd sabe qual formato do body
-    const {
-        name,
-        email,
-        whatsapp,
-        lat,
-        lon,
-        city,
-        uf,
-        items
-    } = request.body;
+// INDEX::ITEMS
+routes.get('/items', itemsController.index);
 
-    // short syntax
-    const ids = await knex('points').insert({
-        image: 'image-fake',
-        name,
-        email,
-        whatsapp,
-        lat,
-        lon,
-        city,
-        uf
-    });
 
-    const pointItems = items.map((item_id: number) => {
-        return {
-            item_id,
-            point_id: ids[0],
-        };
-    });
-    await knex('point_itens').insert(pointItems);
-    return response.json({ success: true})
-});
+//index items
+routes.get('/items', itemsController.index);
+
+// create poits
+routes.post('/points',
+    upload.single('image'),
+    celebrate({
+        body: Joi.object().keys({
+            name: Joi.string().required(),
+            email: Joi.string().required().email(),
+            whatsapp: Joi.string().required(),
+            lat: Joi.number().required(),
+            lon: Joi.number().required(),
+            city: Joi.string().required(),
+            uf: Joi.string().required(),
+            items: Joi.string().required(),
+        })
+    }, {
+        abortEarly: false
+    }),
+    pointsController.create);
+
+// index points
+routes.get('/points/', pointsController.index);
+
+// show points by id 
+routes.get('/points/:id', pointsController.show);
+
+//delete all points
+routes.delete('/points', pointsController.deleteAll);
+
+//delete by id
+routes.delete('/points/:id', pointsController.delete);
 
 export default routes;
